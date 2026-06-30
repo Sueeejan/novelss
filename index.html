@@ -8,7 +8,7 @@
     .tab-content { display: none; }
     .active { display: block; }
     nav { display: flex; gap: 10px; margin-bottom: 20px; }
-    input[type="text"], select, button { display: block; width: 100%; margin: 8px 0; padding: 10px; box-sizing: border-box; }
+    input, select, button { display: block; width: 100%; margin: 8px 0; padding: 10px; box-sizing: border-box; }
     button { background: #FFEEDD; border: 1px solid #ccc; cursor: pointer; }
     .checkbox-group { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin: 10px 0; }
     li { list-style: none; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 5px; }
@@ -17,7 +17,7 @@
 <body>
 
 <nav>
-  <button onclick="checkPassword()">輸入頁 (需密碼)</button>
+  <button onclick="checkPassword()">輸入頁</button>
   <button onclick="showTab('listTab')">歷史紀錄</button>
 </nav>
 
@@ -55,54 +55,44 @@
   function showTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
     document.getElementById(tabId).classList.add('active');
+    if(tabId === 'listTab') renderList();
   }
 
   function checkPassword() {
-    const input = prompt("請輸入管理密碼：");
-    if (input === MY_PASSWORD) { showTab('inputTab'); } 
-    else if (input !== null) { alert("密碼錯誤！"); }
+    const p = prompt("請輸入管理密碼：");
+    if (p === MY_PASSWORD) showTab('inputTab');
+    else if (p !== null) alert("密碼錯誤");
   }
 
   async function saveRecord() {
-    const record = {
+    const data = {
       name: document.getElementById('bookName').value,
       author: document.getElementById('author').value,
       male: document.getElementById('maleLead').value,
       female: document.getElementById('femaleLead').value,
-      genre: Array.from(document.querySelectorAll('#genreGroup input:checked')).map(cb => cb.value).join(', '),
+      genre: Array.from(document.querySelectorAll('#genreGroup input:checked')).map(cb => cb.value).join(','),
       rating: document.getElementById('rating').value,
       time: new Date().toLocaleString()
     };
-    
-    if(!record.name) return alert('請輸入書名');
-    
+    if(!data.name) return alert('書名必填');
     try {
-      await fetch(WEB_APP_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(record)
-      });
-      alert('儲存成功！');
-      location.reload();
-    } catch (e) { alert('儲存失敗'); }
+      await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(data) });
+      alert('儲存成功');
+      showTab('listTab');
+    } catch(e) { alert('儲存失敗'); }
   }
 
   async function renderList() {
     const list = document.getElementById('recordList');
     try {
-      const response = await fetch(WEB_APP_URL + "?v=" + new Date().getTime());
-      const data = await response.json();
+      const res = await fetch(WEB_APP_URL + "?t=" + new Date().getTime());
+      const data = await res.json();
       list.innerHTML = '';
       data.slice(1).reverse().forEach(r => {
-        list.innerHTML += `<li><strong>${r.name || '無名'}</strong><br>作者：${r.author || ''}<br>評分：${'⭐'.repeat(r.rating || 1)}</li>`;
+        list.innerHTML += `<li><strong>${r.name}</strong><br>作者：${r.author}<br>評分：${'⭐'.repeat(r.rating)}</li>`;
       });
-    } catch (e) {
-      list.innerHTML = '無法載入。請確認 Apps Script 部署權限是否設為「所有人」。';
-    }
+    } catch(e) { list.innerHTML = '無法載入資料，請確認部署權限為「所有人」'; }
   }
-  
-  renderList();
 </script>
 </body>
 </html>
