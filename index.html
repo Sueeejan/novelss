@@ -27,7 +27,6 @@
   <input type="text" id="author" placeholder="作者">
   <input type="text" id="maleLead" placeholder="男主角">
   <input type="text" id="femaleLead" placeholder="女主角">
-  
   <label>類型 (可複選):</label>
   <div class="checkbox-group" id="genreGroup">
     <label><input type="checkbox" value="玄幻"> 玄幻</label>
@@ -36,7 +35,6 @@
     <label><input type="checkbox" value="懸疑"> 懸疑</label>
     <label><input type="checkbox" value="科幻"> 科幻</label>
   </div>
-
   <select id="rating">
     <option value="1">⭐ (普通)</option>
     <option value="2">⭐⭐ (喜歡)</option>
@@ -58,6 +56,7 @@
   function showTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
     document.getElementById(tabId).classList.add('active');
+    if(tabId === 'listTab') renderList();
   }
 
   function checkPassword() {
@@ -70,13 +69,12 @@
   }
 
   async function saveRecord() {
-    const selectedGenres = Array.from(document.querySelectorAll('#genreGroup input:checked')).map(cb => cb.value);
     const record = {
       name: document.getElementById('bookName').value,
       author: document.getElementById('author').value,
       male: document.getElementById('maleLead').value,
       female: document.getElementById('femaleLead').value,
-      genre: selectedGenres.join(', '),
+      genre: Array.from(document.querySelectorAll('#genreGroup input:checked')).map(cb => cb.value).join(', '),
       rating: document.getElementById('rating').value,
       time: new Date().toLocaleString()
     };
@@ -84,6 +82,7 @@
     if(!record.name) return alert('請輸入書名');
     
     try {
+      // 使用 fetch 送出資料
       await fetch(WEB_APP_URL, {
         method: 'POST',
         mode: 'no-cors',
@@ -92,10 +91,9 @@
       });
       alert('紀錄成功！');
       document.querySelectorAll('input[type="text"]').forEach(i => i.value = '');
-      document.querySelectorAll('#genreGroup input').forEach(i => i.checked = false);
       renderList();
       showTab('listTab');
-    } catch (error) {
+    } catch (e) {
       alert('同步失敗，請檢查網路。');
     }
   }
@@ -103,25 +101,28 @@
   async function renderList() {
     const list = document.getElementById('recordList');
     const searchTerm = document.getElementById('searchBar').value.toLowerCase();
+    list.innerHTML = '載入中...';
     
     try {
-      const response = await fetch(WEB_APP_URL);
+      // 強制不使用快取抓取資料
+      const response = await fetch(WEB_APP_URL + "?cache=" + new Date().getTime());
       const records = await response.json();
       
       list.innerHTML = '';
-      // 假設第一列是標題，使用 slice(1) 跳過，並顯示最新紀錄在上方
+      if(!records || records.length <= 1) {
+        list.innerHTML = '目前沒有紀錄';
+        return;
+      }
+
       records.slice(1).reverse().filter(r => 
         (r.name && r.name.toLowerCase().includes(searchTerm)) || 
         (r.genre && r.genre.toLowerCase().includes(searchTerm))
       ).forEach((r) => {
-        list.innerHTML += `<li>
-          <strong>${r.name || '未命名'}</strong> (${r.genre || '無分類'})<br>
-          作者：${r.author || ''} | 主角：${r.male || ''} & ${r.female || ''}<br>
-          喜好：${'⭐'.repeat(r.rating || 1)} | ${r.time || ''}
-        </li>`;
+        list.innerHTML += `<li><strong>${r.name || '未命名'}</strong> (${r.genre || '無分類'})<br>作者：${r.author || ''} | 喜好：${'⭐'.repeat(r.rating || 1)}</li>`;
       });
     } catch (e) {
-      list.innerHTML = '無法載入資料，請確認 Apps Script 是否已部署。';
+      list.innerHTML = '讀取失敗。請確認 Apps Script 部署設定是否設為「所有人」。';
+      console.error(e);
     }
   }
   
