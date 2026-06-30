@@ -1,20 +1,26 @@
-<style>
-  body { font-family: sans-serif; max-width: 500px; margin: 20px auto; padding: 20px; }
-  .tab-content { display: none; }
-  .active { display: block; }
-  nav { display: flex; gap: 10px; margin-bottom: 20px; }
-  input[type="text"], select, button { display: block; width: 100%; margin: 8px 0; padding: 10px; box-sizing: border-box; }
-  button { background: #FFEEDD; border: 1px solid #ccc; cursor: pointer; }
-  .checkbox-group { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin: 10px 0; }
-  li { list-style: none; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 5px; }
-</style>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: sans-serif; max-width: 500px; margin: 20px auto; padding: 20px; }
+    .tab-content { display: none; }
+    .active { display: block; }
+    nav { display: flex; gap: 10px; margin-bottom: 20px; }
+    input[type="text"], select, button { display: block; width: 100%; margin: 8px 0; padding: 10px; box-sizing: border-box; }
+    button { background: #FFEEDD; border: 1px solid #ccc; cursor: pointer; }
+    .checkbox-group { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin: 10px 0; }
+    li { list-style: none; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 5px; }
+  </style>
+</head>
+<body>
 
 <nav>
   <button onclick="checkPassword()">輸入頁 (需密碼)</button>
   <button onclick="showTab('listTab')">歷史紀錄</button>
 </nav>
 
-<!-- 預設隱藏輸入頁 -->
 <div id="inputTab" class="tab-content">
   <h2>新增紀錄</h2>
   <input type="text" id="bookName" placeholder="書名">
@@ -39,16 +45,15 @@
   <button onclick="saveRecord()">儲存紀錄</button>
 </div>
 
-<!-- 預設顯示歷史紀錄頁 -->
 <div id="listTab" class="tab-content active">
   <h2>歷史紀錄</h2>
   <input type="text" id="searchBar" placeholder="搜尋書名或類型..." oninput="renderList()">
-  <ul id="recordList"></ul>
+  <ul id="recordList">載入中...</ul>
 </div>
 
 <script>
   const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzern1SvGgHcmD48-XGPbON3YQ3dvsoAG93OjRWXy7iPJ6ayLvLFLHag1F2khIae67x/exec";
-  const MY_PASSWORD = "12345"; // 在此修改你的密碼
+  const MY_PASSWORD = "12345";
 
   function showTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -71,17 +76,13 @@
       author: document.getElementById('author').value,
       male: document.getElementById('maleLead').value,
       female: document.getElementById('femaleLead').value,
-      genre: selectedGenres,
+      genre: selectedGenres.join(', '),
       rating: document.getElementById('rating').value,
       time: new Date().toLocaleString()
     };
     
     if(!record.name) return alert('請輸入書名');
     
-    const records = JSON.parse(localStorage.getItem('novels') || '[]');
-    records.push(record);
-    localStorage.setItem('novels', JSON.stringify(records));
-
     try {
       await fetch(WEB_APP_URL, {
         method: 'POST',
@@ -89,35 +90,42 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(record)
       });
-      alert('紀錄成功並已同步！');
+      alert('紀錄成功！');
+      document.querySelectorAll('input[type="text"]').forEach(i => i.value = '');
+      document.querySelectorAll('#genreGroup input').forEach(i => i.checked = false);
+      renderList();
+      showTab('listTab');
     } catch (error) {
-      alert('紀錄成功，但同步失敗。');
+      alert('同步失敗，請檢查網路。');
     }
-    
-    document.querySelectorAll('input[type="text"]').forEach(i => i.value = '');
-    document.querySelectorAll('#genreGroup input').forEach(i => i.checked = false);
-    renderList();
-    showTab('listTab'); // 儲存完自動回到歷史紀錄
   }
 
-  function renderList() {
+  async function renderList() {
     const list = document.getElementById('recordList');
     const searchTerm = document.getElementById('searchBar').value.toLowerCase();
-    const records = JSON.parse(localStorage.getItem('novels') || '[]');
     
-    list.innerHTML = '';
-    records.filter(r => 
-      (r.name && r.name.toLowerCase().includes(searchTerm)) || 
-      (r.genre && r.genre.some(g => g.toLowerCase().includes(searchTerm)))
-    ).forEach((r) => {
-      const genreText = Array.isArray(r.genre) ? r.genre.join(', ') : '無分類';
-      list.innerHTML += `<li>
-        <strong>${r.name || '未命名'}</strong> (${genreText})<br>
-        作者：${r.author || ''} | 主角：${r.male || ''} & ${r.female || ''}<br>
-        喜好：${'⭐'.repeat(r.rating || 1)} | ${r.time || ''}
-      </li>`;
-    });
+    try {
+      const response = await fetch(WEB_APP_URL);
+      const records = await response.json();
+      
+      list.innerHTML = '';
+      // 假設第一列是標題，使用 slice(1) 跳過，並顯示最新紀錄在上方
+      records.slice(1).reverse().filter(r => 
+        (r.name && r.name.toLowerCase().includes(searchTerm)) || 
+        (r.genre && r.genre.toLowerCase().includes(searchTerm))
+      ).forEach((r) => {
+        list.innerHTML += `<li>
+          <strong>${r.name || '未命名'}</strong> (${r.genre || '無分類'})<br>
+          作者：${r.author || ''} | 主角：${r.male || ''} & ${r.female || ''}<br>
+          喜好：${'⭐'.repeat(r.rating || 1)} | ${r.time || ''}
+        </li>`;
+      });
+    } catch (e) {
+      list.innerHTML = '無法載入資料，請確認 Apps Script 是否已部署。';
+    }
   }
   
   renderList();
 </script>
+</body>
+</html>
